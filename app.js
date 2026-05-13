@@ -2,6 +2,10 @@ const STORAGE_KEY = "fintrack-state-v1";
 
 const categories = ["Food", "Shopping", "Bills", "Transportation", "Entertainment", "Salary", "Freelance", "Investments"];
 const accountTypes = ["Cash", "Bank", "Credit Card", "E-wallet"];
+const currencyRates = {
+  USD: { rate: 1, locale: "en-US", currency: "USD", fractionDigits: 2 },
+  VND: { rate: 25000, locale: "vi-VN", currency: "VND", fractionDigits: 0 },
+};
 const viewTitles = {
   dashboard: "Dashboard",
   transactions: "Transactions",
@@ -29,6 +33,9 @@ const seedState = {
     },
   ],
   sessionEmail: null,
+  settings: {
+    currency: "USD",
+  },
   accounts: [
     { id: crypto.randomUUID(), name: "Main Checking", balance: 4250, type: "Bank" },
     { id: crypto.randomUUID(), name: "Cash Wallet", balance: 320, type: "Cash" },
@@ -68,6 +75,7 @@ const appShell = document.querySelector("#appShell");
 const authMessage = document.querySelector("#authMessage");
 const viewTitle = document.querySelector("#viewTitle");
 const activeUser = document.querySelector("#activeUser");
+const currencySelect = document.querySelector("#currencySelect");
 
 init();
 
@@ -75,6 +83,7 @@ function init() {
   migrateState();
   bindAuth();
   bindNavigation();
+  bindCurrency();
   document.querySelector("#logoutButton").addEventListener("click", logout);
   updateSessionVisibility();
 }
@@ -130,12 +139,22 @@ function bindNavigation() {
   });
 }
 
+function bindCurrency() {
+  currencySelect.value = activeCurrency();
+  currencySelect.addEventListener("change", () => {
+    state.settings.currency = currencySelect.value;
+    saveState();
+    render();
+  });
+}
+
 function updateSessionVisibility() {
   const user = currentUser();
   authScreen.classList.toggle("hidden", Boolean(user));
   appShell.classList.toggle("hidden", !user);
   if (user) {
     activeUser.textContent = user.name || user.email;
+    currencySelect.value = activeCurrency();
     render();
   }
 }
@@ -203,7 +222,7 @@ function renderTransactions() {
       <div class="panel-header"><h3>${editingTransactionId ? "Edit" : "Add"} Transaction</h3></div>
       <form id="transactionForm" class="form-grid">
         <label>Title<input name="title" required /></label>
-        <label>Amount<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+        <label>Amount (${activeCurrency()})<input name="amount" type="number" min="0.01" step="0.01" required /></label>
         <label>Type<select name="type"><option>Expense</option><option>Income</option></select></label>
         <label>Category<select name="category">${options(categories)}</select></label>
         <label>Account<select name="account">${options(state.accounts.map((account) => account.name))}</select></label>
@@ -240,7 +259,7 @@ function renderBudgets() {
         <div class="panel-header"><h3>${editingBudgetId ? "Edit" : "Create"} Budget</h3></div>
         <form id="budgetForm" class="form-grid">
           <label>Category<select name="category">${options(categories.filter((item) => !["Salary", "Freelance", "Investments"].includes(item)))}</select></label>
-          <label>Monthly limit<input name="limit" type="number" min="1" step="1" required /></label>
+          <label>Monthly limit (${activeCurrency()})<input name="limit" type="number" min="1" step="1" required /></label>
           <label>Month<input name="month" type="month" value="${currentMonth()}" required /></label>
           <div class="row-actions full-width">
             <button class="primary-button" type="submit">${editingBudgetId ? "Save changes" : "Add budget"}</button>
@@ -270,8 +289,8 @@ function renderGoals() {
         <div class="panel-header"><h3>${editingGoalId ? "Edit" : "Create"} Saving Goal</h3></div>
         <form id="goalForm" class="form-grid">
           <label>Goal name<input name="name" required /></label>
-          <label>Target amount<input name="target" type="number" min="1" step="1" required /></label>
-          <label>Current amount<input name="current" type="number" min="0" step="1" required /></label>
+          <label>Target amount (${activeCurrency()})<input name="target" type="number" min="1" step="1" required /></label>
+          <label>Current amount (${activeCurrency()})<input name="current" type="number" min="0" step="1" required /></label>
           <label>Deadline<input name="deadline" type="date" required /></label>
           <div class="row-actions full-width">
             <button class="primary-button" type="submit">${editingGoalId ? "Save changes" : "Add goal"}</button>
@@ -320,7 +339,7 @@ function renderAccounts() {
         <div class="panel-header"><h3>${editingAccountId ? "Edit" : "Add"} Account</h3></div>
         <form id="accountForm" class="form-grid">
           <label>Account name<input name="name" required /></label>
-          <label>Balance<input name="balance" type="number" step="0.01" required /></label>
+          <label>Balance (${activeCurrency()})<input name="balance" type="number" step="0.01" required /></label>
           <label>Type<select name="type">${options(accountTypes)}</select></label>
           <div class="row-actions full-width">
             <button class="primary-button" type="submit">${editingAccountId ? "Save changes" : "Add account"}</button>
@@ -352,7 +371,7 @@ function bindTransactionForm() {
     const transaction = {
       id: editingTransactionId || crypto.randomUUID(),
       title: data.title,
-      amount: Number(data.amount),
+      amount: displayToBase(data.amount),
       type: data.type,
       category: data.category,
       account: data.account,
@@ -417,7 +436,7 @@ function bindBudgetForm() {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
-    const budget = { id: editingBudgetId || crypto.randomUUID(), category: data.category, limit: Number(data.limit), month: data.month };
+    const budget = { id: editingBudgetId || crypto.randomUUID(), category: data.category, limit: displayToBase(data.limit), month: data.month };
     state.budgets = editingBudgetId ? state.budgets.map((item) => (item.id === editingBudgetId ? budget : item)) : [budget, ...state.budgets];
     editingBudgetId = null;
     saveState();
@@ -443,7 +462,7 @@ function bindGoalForm() {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
-    const goal = { id: editingGoalId || crypto.randomUUID(), name: data.name, target: Number(data.target), current: Number(data.current), deadline: data.deadline };
+    const goal = { id: editingGoalId || crypto.randomUUID(), name: data.name, target: displayToBase(data.target), current: displayToBase(data.current), deadline: data.deadline };
     state.goals = editingGoalId ? state.goals.map((item) => (item.id === editingGoalId ? goal : item)) : [goal, ...state.goals];
     editingGoalId = null;
     saveState();
@@ -470,7 +489,7 @@ function bindAccountForm() {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
     const original = state.accounts.find((account) => account.id === editingAccountId);
-    const account = { id: editingAccountId || crypto.randomUUID(), name: data.name, balance: Number(data.balance), type: data.type };
+    const account = { id: editingAccountId || crypto.randomUUID(), name: data.name, balance: displayToBase(data.balance), type: data.type };
     state.accounts = editingAccountId ? state.accounts.map((item) => (item.id === editingAccountId ? account : item)) : [account, ...state.accounts];
     if (original && original.name !== account.name) {
       state.transactions = state.transactions.map((transaction) => transaction.account === original.name ? { ...transaction, account: account.name } : transaction);
@@ -545,7 +564,7 @@ function hydrateTransactionForm() {
   if (!item) return;
   const form = document.querySelector("#transactionForm");
   Object.entries(item).forEach(([key, value]) => {
-    if (form.elements[key]) form.elements[key].value = value;
+    if (form.elements[key]) form.elements[key].value = key === "amount" ? baseToDisplay(value) : value;
   });
 }
 
@@ -554,7 +573,7 @@ function hydrateBudgetForm() {
   if (!item) return;
   const form = document.querySelector("#budgetForm");
   form.elements.category.value = item.category;
-  form.elements.limit.value = item.limit;
+  form.elements.limit.value = baseToDisplay(item.limit);
   form.elements.month.value = item.month;
 }
 
@@ -563,8 +582,8 @@ function hydrateGoalForm() {
   if (!item) return;
   const form = document.querySelector("#goalForm");
   form.elements.name.value = item.name;
-  form.elements.target.value = item.target;
-  form.elements.current.value = item.current;
+  form.elements.target.value = baseToDisplay(item.target);
+  form.elements.current.value = baseToDisplay(item.current);
   form.elements.deadline.value = item.deadline;
 }
 
@@ -573,7 +592,7 @@ function hydrateAccountForm() {
   if (!item) return;
   const form = document.querySelector("#accountForm");
   form.elements.name.value = item.name;
-  form.elements.balance.value = item.balance;
+  form.elements.balance.value = baseToDisplay(item.balance);
   form.elements.type.value = item.type;
 }
 
@@ -883,6 +902,14 @@ function saveState() {
 function migrateState() {
   const requiredUsers = seedState.users;
   let changed = false;
+  if (!state.settings) {
+    state.settings = { currency: "USD" };
+    changed = true;
+  }
+  if (!currencyRates[state.settings.currency]) {
+    state.settings.currency = "USD";
+    changed = true;
+  }
   requiredUsers.forEach((requiredUser) => {
     if (!state.users.some((user) => user.email === requiredUser.email)) {
       state.users.push(requiredUser);
@@ -904,12 +931,35 @@ function options(items) {
   return items.map((item) => `<option>${escapeHtml(item)}</option>`).join("");
 }
 
+function activeCurrency() {
+  return state.settings?.currency || "USD";
+}
+
+function baseToDisplay(value) {
+  return Number(value || 0) * currencyRates[activeCurrency()].rate;
+}
+
+function displayToBase(value) {
+  return Number(value || 0) / currencyRates[activeCurrency()].rate;
+}
+
 function money(value) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value) || 0);
+  const config = currencyRates[activeCurrency()];
+  return new Intl.NumberFormat(config.locale, {
+    style: "currency",
+    currency: config.currency,
+    maximumFractionDigits: config.fractionDigits,
+  }).format(baseToDisplay(value));
 }
 
 function compactMoney(value) {
-  return new Intl.NumberFormat("en-US", { notation: "compact", style: "currency", currency: "USD" }).format(Number(value) || 0);
+  const config = currencyRates[activeCurrency()];
+  return new Intl.NumberFormat(config.locale, {
+    notation: "compact",
+    style: "currency",
+    currency: config.currency,
+    maximumFractionDigits: config.fractionDigits,
+  }).format(baseToDisplay(value));
 }
 
 function formatDate(value) {
