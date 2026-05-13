@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinTrack Personal Finance</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="authScreen" class="auth-screen">
+      <section class="auth-panel" aria-labelledby="authTitle">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">F</div>
+          <div>
+            <h1 id="authTitle">FinTrack</h1>
+            <p>Personal finance, organized.</p>
+          </div>
+        </div>
+
+        <div class="auth-tabs" role="tablist" aria-label="Authentication">
+          <button class="auth-tab active" data-auth-tab="login" type="button">Login</button>
+          <button class="auth-tab" data-auth-tab="register" type="button">Register</button>
+        </div>
+
+        <form id="loginForm" class="auth-form" data-auth-form="login">
+          <label>
+            Email
+            <input name="email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="primary-button" type="submit">Login</button>
+        </form>
+
+        <form id="registerForm" class="auth-form hidden" data-auth-form="register">
+          <label>
+            Name
+            <input name="name" type="text" autocomplete="name" required />
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input name="password" type="password" autocomplete="new-password" minlength="6" required />
+          </label>
+          <button class="primary-button" type="submit">Create account</button>
+        </form>
+        <p id="authMessage" class="form-message" role="status"></p>
+      </section>
+    </div>
+
+    <div id="appShell" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-mark" aria-hidden="true">F</div>
+          <span>FinTrack</span>
+        </div>
+        <nav class="nav-list" aria-label="Main">
+          <button class="nav-item active" data-view="dashboard" type="button">Dashboard</button>
+          <button class="nav-item" data-view="transactions" type="button">Transactions</button>
+          <button class="nav-item" data-view="budgets" type="button">Budgets</button>
+          <button class="nav-item" data-view="goals" type="button">Goals</button>
+          <button class="nav-item" data-view="reports" type="button">Reports</button>
+          <button class="nav-item" data-view="accounts" type="button">Accounts</button>
+        </nav>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Personal finance</p>
+            <h2 id="viewTitle">Dashboard</h2>
+          </div>
+          <div class="topbar-actions">
+            <span id="activeUser" class="user-chip"></span>
+            <button id="logoutButton" class="ghost-button" type="button">Logout</button>
+          </div>
+        </header>
+
+        <section id="dashboardView" class="view active-view"></section>
+        <section id="transactionsView" class="view"></section>
+        <section id="budgetsView" class="view"></section>
+        <section id="goalsView" class="view"></section>
+        <section id="reportsView" class="view"></section>
+        <section id="accountsView" class="view"></section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
