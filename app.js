@@ -2,6 +2,10 @@ const STORAGE_KEY = "fintrack-state-v1";
 
 const categories = ["Food", "Shopping", "Bills", "Transportation", "Entertainment", "Salary", "Freelance", "Investments"];
 const accountTypes = ["Cash", "Bank", "Credit Card", "E-wallet"];
+const currencyRates = {
+  USD: { rate: 1, locale: "en-US", currency: "USD", fractionDigits: 2 },
+  VND: { rate: 25000, locale: "vi-VN", currency: "VND", fractionDigits: 0 },
+};
 const viewTitles = {
   dashboard: "Dashboard",
   transactions: "Transactions",
@@ -29,6 +33,9 @@ const seedState = {
     },
   ],
   sessionEmail: null,
+  settings: {
+    currency: "USD",
+  },
   accounts: [
     { id: crypto.randomUUID(), name: "Main Checking", balance: 4250, type: "Bank" },
     { id: crypto.randomUUID(), name: "Cash Wallet", balance: 320, type: "Cash" },
@@ -68,6 +75,7 @@ const appShell = document.querySelector("#appShell");
 const authMessage = document.querySelector("#authMessage");
 const viewTitle = document.querySelector("#viewTitle");
 const activeUser = document.querySelector("#activeUser");
+const currencySelect = document.querySelector("#currencySelect");
 
 init();
 
@@ -75,6 +83,7 @@ function init() {
   migrateState();
   bindAuth();
   bindNavigation();
+  bindCurrency();
   document.querySelector("#logoutButton").addEventListener("click", logout);
   updateSessionVisibility();
 }
@@ -130,12 +139,22 @@ function bindNavigation() {
   });
 }
 
+function bindCurrency() {
+  currencySelect.value = activeCurrency();
+  currencySelect.addEventListener("change", () => {
+    state.settings.currency = currencySelect.value;
+    saveState();
+    render();
+  });
+}
+
 function updateSessionVisibility() {
   const user = currentUser();
   authScreen.classList.toggle("hidden", Boolean(user));
   appShell.classList.toggle("hidden", !user);
   if (user) {
     activeUser.textContent = user.name || user.email;
+    currencySelect.value = activeCurrency();
     render();
   }
 }
@@ -158,42 +177,71 @@ function render() {
 function renderDashboard() {
   const metrics = calculateMetrics();
   document.querySelector("#dashboardView").innerHTML = `
-    <div class="summary-grid">
-      ${summaryCard("Total Balance", money(metrics.totalBalance))}
-      ${summaryCard("Monthly Income", money(metrics.monthlyIncome))}
-      ${summaryCard("Monthly Expenses", money(metrics.monthlyExpenses))}
-      ${summaryCard("Savings", money(metrics.savings))}
-    </div>
-    <div class="content-grid">
-      <div class="panel">
-        <div class="panel-header"><h3>Income vs Expense</h3><span class="status-pill">${currentMonth()}</span></div>
-        <canvas id="incomeExpenseChart" class="chart"></canvas>
-      </div>
-      <div class="panel">
-        <div class="panel-header"><h3>Expense Breakdown</h3></div>
-        <canvas id="breakdownChart" class="chart"></canvas>
-      </div>
-    </div>
-    <div class="content-grid">
-      <div class="panel">
-        <div class="panel-header"><h3>Recent Transactions</h3></div>
-        ${transactionTable(state.transactions.slice().sort(byDateDesc).slice(0, 5), false)}
-      </div>
-      <div class="panel">
-        <div class="panel-header"><h3>Budget Progress</h3></div>
-        ${progressList(budgetProgress(), "budget")}
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header"><h3>Goal Progress</h3></div>
-      ${progressList(goalProgress(), "goal")}
+    <div class="dashboard-layout">
+      <section class="dashboard-side">
+        <article class="balance-card">
+          <div class="card-chip-row"><span class="coin-cluster">◆◆</span><span class="contactless">)))</span></div>
+          <h3>${escapeHtml(currentUser()?.name || "Finance User")}</h3>
+          <div class="balance-card-bottom">
+            <div><span>Balance Amount</span><strong>${money(metrics.totalBalance)}</strong></div>
+            <div><span>EXP</span><strong>11/29</strong></div>
+            <div><span>CVV</span><strong>323</strong></div>
+          </div>
+        </article>
+        <div class="quick-actions">
+          ${quickAction("⊕", "Top Up")}
+          ${quickAction("↻", "Transfer")}
+          ${quickAction("↺", "Request")}
+          ${quickAction("◷", "History")}
+        </div>
+        <article class="panel daily-limit-card">
+          <div class="panel-header"><h3>Daily Limit</h3><button class="icon-button" type="button">⋮</button></div>
+          <div class="limit-row"><strong>${money(metrics.monthlyExpenses)}</strong><span>spent of ${money(metrics.monthlyIncome + metrics.monthlyExpenses)}</span><b>${metrics.monthlyIncome ? Math.round((metrics.monthlyExpenses / (metrics.monthlyIncome + metrics.monthlyExpenses)) * 100) : 0}%</b></div>
+          <div class="progress-track"><div class="progress-fill" style="width: ${Math.min(metrics.monthlyIncome ? (metrics.monthlyExpenses / (metrics.monthlyIncome + metrics.monthlyExpenses)) * 100 : 0, 100)}%"></div></div>
+        </article>
+        <article class="panel saving-plans-card">
+          <div class="panel-header"><h3>Saving Plans</h3><button class="ghost-link" data-view-jump="goals" type="button">+ Add Plan</button></div>
+          <p class="muted">Total Savings</p>
+          <strong class="panel-total">${money(metrics.savings + sum(state.goals.map((goal) => goal.current)))}</strong>
+          <div class="mini-plan-list">${savingPlanCards()}</div>
+        </article>
+      </section>
+      <section class="dashboard-main">
+        <div class="metric-card-grid">
+          ${dashboardMetricCard("↺", "+ 1.78 %", "Total Income", metrics.monthlyIncome, "good")}
+          ${dashboardMetricCard("↘", "- 1.78 %", "Total Expense", metrics.monthlyExpenses, "bad")}
+          ${dashboardMetricCard("▣", "+ 1.24 %", "Total Savings", metrics.savings, "good")}
+        </div>
+        <article class="panel cashflow-panel">
+          <div class="panel-header">
+            <div><h3>Cashflow</h3><p class="muted">Total Balance</p><strong class="panel-total">${money(metrics.totalBalance)}</strong></div>
+            <span class="status-pill">This Year</span>
+          </div>
+          <canvas id="cashflowChart" class="chart cashflow-chart"></canvas>
+        </article>
+        <article class="panel recent-panel">
+          <div class="panel-header"><h3>Recent Transactions</h3><span class="status-pill">This Month</span></div>
+          ${transactionTable(state.transactions.slice().sort(byDateDesc).slice(0, 5), false)}
+        </article>
+      </section>
+      <section class="dashboard-right">
+        <article class="panel statistic-panel">
+          <div class="panel-header"><h3>Statistic</h3><span class="status-pill">This Month</span></div>
+          <div class="stat-tabs"><span>Income (${compactMoney(metrics.monthlyIncome)})</span><strong>Expense (${compactMoney(metrics.monthlyExpenses)})</strong></div>
+          <canvas id="breakdownChart" class="chart donut-chart"></canvas>
+          <div class="stat-list">${statisticsList()}</div>
+        </article>
+        <article class="panel activity-panel">
+          <div class="panel-header"><h3>Recent Activity</h3><button class="icon-button" type="button">⋮</button></div>
+          ${recentActivity()}
+        </article>
+      </section>
     </div>
   `;
-  drawBarChart("incomeExpenseChart", [
-    { label: "Income", value: metrics.monthlyIncome, color: "#217a57" },
-    { label: "Expenses", value: metrics.monthlyExpenses, color: "#b84646" },
-    { label: "Savings", value: Math.max(metrics.savings, 0), color: "#276a9f" },
-  ]);
+  document.querySelectorAll("[data-view-jump]").forEach((button) => {
+    button.addEventListener("click", () => document.querySelector(`[data-view="${button.dataset.viewJump}"]`)?.click());
+  });
+  drawCashflowChart("cashflowChart");
   drawDonutChart("breakdownChart", expenseBreakdown());
 }
 
@@ -203,7 +251,7 @@ function renderTransactions() {
       <div class="panel-header"><h3>${editingTransactionId ? "Edit" : "Add"} Transaction</h3></div>
       <form id="transactionForm" class="form-grid">
         <label>Title<input name="title" required /></label>
-        <label>Amount<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+        <label>Amount (${activeCurrency()})<input name="amount" type="number" min="0.01" step="0.01" required /></label>
         <label>Type<select name="type"><option>Expense</option><option>Income</option></select></label>
         <label>Category<select name="category">${options(categories)}</select></label>
         <label>Account<select name="account">${options(state.accounts.map((account) => account.name))}</select></label>
@@ -240,7 +288,7 @@ function renderBudgets() {
         <div class="panel-header"><h3>${editingBudgetId ? "Edit" : "Create"} Budget</h3></div>
         <form id="budgetForm" class="form-grid">
           <label>Category<select name="category">${options(categories.filter((item) => !["Salary", "Freelance", "Investments"].includes(item)))}</select></label>
-          <label>Monthly limit<input name="limit" type="number" min="1" step="1" required /></label>
+          <label>Monthly limit (${activeCurrency()})<input name="limit" type="number" min="1" step="1" required /></label>
           <label>Month<input name="month" type="month" value="${currentMonth()}" required /></label>
           <div class="row-actions full-width">
             <button class="primary-button" type="submit">${editingBudgetId ? "Save changes" : "Add budget"}</button>
@@ -270,8 +318,8 @@ function renderGoals() {
         <div class="panel-header"><h3>${editingGoalId ? "Edit" : "Create"} Saving Goal</h3></div>
         <form id="goalForm" class="form-grid">
           <label>Goal name<input name="name" required /></label>
-          <label>Target amount<input name="target" type="number" min="1" step="1" required /></label>
-          <label>Current amount<input name="current" type="number" min="0" step="1" required /></label>
+          <label>Target amount (${activeCurrency()})<input name="target" type="number" min="1" step="1" required /></label>
+          <label>Current amount (${activeCurrency()})<input name="current" type="number" min="0" step="1" required /></label>
           <label>Deadline<input name="deadline" type="date" required /></label>
           <div class="row-actions full-width">
             <button class="primary-button" type="submit">${editingGoalId ? "Save changes" : "Add goal"}</button>
@@ -320,7 +368,7 @@ function renderAccounts() {
         <div class="panel-header"><h3>${editingAccountId ? "Edit" : "Add"} Account</h3></div>
         <form id="accountForm" class="form-grid">
           <label>Account name<input name="name" required /></label>
-          <label>Balance<input name="balance" type="number" step="0.01" required /></label>
+          <label>Balance (${activeCurrency()})<input name="balance" type="number" step="0.01" required /></label>
           <label>Type<select name="type">${options(accountTypes)}</select></label>
           <div class="row-actions full-width">
             <button class="primary-button" type="submit">${editingAccountId ? "Save changes" : "Add account"}</button>
@@ -352,7 +400,7 @@ function bindTransactionForm() {
     const transaction = {
       id: editingTransactionId || crypto.randomUUID(),
       title: data.title,
-      amount: Number(data.amount),
+      amount: displayToBase(data.amount),
       type: data.type,
       category: data.category,
       account: data.account,
@@ -417,7 +465,7 @@ function bindBudgetForm() {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
-    const budget = { id: editingBudgetId || crypto.randomUUID(), category: data.category, limit: Number(data.limit), month: data.month };
+    const budget = { id: editingBudgetId || crypto.randomUUID(), category: data.category, limit: displayToBase(data.limit), month: data.month };
     state.budgets = editingBudgetId ? state.budgets.map((item) => (item.id === editingBudgetId ? budget : item)) : [budget, ...state.budgets];
     editingBudgetId = null;
     saveState();
@@ -443,7 +491,7 @@ function bindGoalForm() {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
-    const goal = { id: editingGoalId || crypto.randomUUID(), name: data.name, target: Number(data.target), current: Number(data.current), deadline: data.deadline };
+    const goal = { id: editingGoalId || crypto.randomUUID(), name: data.name, target: displayToBase(data.target), current: displayToBase(data.current), deadline: data.deadline };
     state.goals = editingGoalId ? state.goals.map((item) => (item.id === editingGoalId ? goal : item)) : [goal, ...state.goals];
     editingGoalId = null;
     saveState();
@@ -470,7 +518,7 @@ function bindAccountForm() {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
     const original = state.accounts.find((account) => account.id === editingAccountId);
-    const account = { id: editingAccountId || crypto.randomUUID(), name: data.name, balance: Number(data.balance), type: data.type };
+    const account = { id: editingAccountId || crypto.randomUUID(), name: data.name, balance: displayToBase(data.balance), type: data.type };
     state.accounts = editingAccountId ? state.accounts.map((item) => (item.id === editingAccountId ? account : item)) : [account, ...state.accounts];
     if (original && original.name !== account.name) {
       state.transactions = state.transactions.map((transaction) => transaction.account === original.name ? { ...transaction, account: account.name } : transaction);
@@ -540,12 +588,65 @@ function updateReportContent() {
   drawLineChart("savingsChart", savingsSeriesFromTransactions(rows), "#217a57");
 }
 
+function quickAction(icon, label) {
+  return `<button class="quick-action" type="button"><span>${icon}</span><strong>${label}</strong></button>`;
+}
+
+function dashboardMetricCard(icon, change, label, value, tone) {
+  return `
+    <article class="dashboard-metric-card">
+      <div class="metric-top"><span class="metric-icon">${icon}</span><button class="icon-button" type="button">⋮</button></div>
+      <span class="change-pill ${tone}">${change}</span>
+      <strong>${money(value)}</strong>
+      <p>${label}</p>
+    </article>
+  `;
+}
+
+function savingPlanCards() {
+  return state.goals.slice(0, 3).map((goal, index) => {
+    const percent = goal.target ? Math.round((goal.current / goal.target) * 100) : 0;
+    const icons = ["⚠", "✈", "⌂"];
+    return `
+      <div class="mini-plan">
+        <div class="mini-plan-head"><span>${icons[index % icons.length]}</span><strong>${escapeHtml(goal.name)}</strong><button class="icon-button" type="button">⋮</button></div>
+        <div class="progress-track"><div class="progress-fill" style="width: ${Math.min(percent, 100)}%"></div></div>
+        <div class="mini-plan-meta"><span>${money(goal.current)} ${percent}%</span><span>Target: ${money(goal.target)}</span></div>
+      </div>
+    `;
+  }).join("") || '<p class="muted">No saving plans yet.</p>';
+}
+
+function statisticsList() {
+  const breakdown = expenseBreakdown();
+  const total = sum(breakdown.map((item) => item.value)) || 1;
+  return breakdown.slice(0, 5).map((item) => {
+    const percent = Math.round((item.value / total) * 100);
+    return `<div class="stat-row"><span class="stat-percent">${percent}%</span><span>${escapeHtml(item.label)}</span><strong>${money(item.value)}</strong></div>`;
+  }).join("") || '<p class="muted">No expense data yet.</p>';
+}
+
+function recentActivity() {
+  const transactions = state.transactions.slice().sort(byDateDesc).slice(0, 5);
+  return `
+    <div class="activity-list">
+      <p class="activity-day">Today</p>
+      ${transactions.map((transaction, index) => `
+        <div class="activity-item">
+          <span class="avatar-bubble">${String.fromCharCode(65 + index)}</span>
+          <div><strong>${escapeHtml(transaction.title)}</strong><p>${transaction.type === "Income" ? "added income to" : "spent from"} ${escapeHtml(transaction.account)}</p><small>${formatDate(transaction.date)}</small></div>
+        </div>
+      `).join("") || '<p class="muted">No activity yet.</p>'}
+    </div>
+  `;
+}
+
 function hydrateTransactionForm() {
   const item = state.transactions.find((transaction) => transaction.id === editingTransactionId);
   if (!item) return;
   const form = document.querySelector("#transactionForm");
   Object.entries(item).forEach(([key, value]) => {
-    if (form.elements[key]) form.elements[key].value = value;
+    if (form.elements[key]) form.elements[key].value = key === "amount" ? baseToDisplay(value) : value;
   });
 }
 
@@ -554,7 +655,7 @@ function hydrateBudgetForm() {
   if (!item) return;
   const form = document.querySelector("#budgetForm");
   form.elements.category.value = item.category;
-  form.elements.limit.value = item.limit;
+  form.elements.limit.value = baseToDisplay(item.limit);
   form.elements.month.value = item.month;
 }
 
@@ -563,8 +664,8 @@ function hydrateGoalForm() {
   if (!item) return;
   const form = document.querySelector("#goalForm");
   form.elements.name.value = item.name;
-  form.elements.target.value = item.target;
-  form.elements.current.value = item.current;
+  form.elements.target.value = baseToDisplay(item.target);
+  form.elements.current.value = baseToDisplay(item.current);
   form.elements.deadline.value = item.deadline;
 }
 
@@ -573,7 +674,7 @@ function hydrateAccountForm() {
   if (!item) return;
   const form = document.querySelector("#accountForm");
   form.elements.name.value = item.name;
-  form.elements.balance.value = item.balance;
+  form.elements.balance.value = baseToDisplay(item.balance);
   form.elements.type.value = item.type;
 }
 
@@ -759,6 +860,79 @@ function savingsSeriesFromTransactions(rows) {
     .slice(-8);
 }
 
+function drawCashflowChart(id) {
+  const canvas = document.querySelector(`#${id}`);
+  const { ctx, width, height } = prepareCanvas(canvas);
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(today.getFullYear(), index, 1);
+    return date.toISOString().slice(0, 7);
+  });
+  const data = months.map((month) => {
+    const income = sum(state.transactions.filter((transaction) => transaction.type === "Income" && transaction.date.startsWith(month)).map((transaction) => transaction.amount));
+    const expense = sum(state.transactions.filter((transaction) => transaction.type === "Expense" && transaction.date.startsWith(month)).map((transaction) => transaction.amount));
+    return { label: new Date(`${month}-01T00:00:00`).toLocaleString("en-US", { month: "short" }), income, expense };
+  });
+  const max = Math.max(...data.flatMap((item) => [item.income, item.expense]), 1);
+  const left = 48;
+  const bottom = height - 34;
+  const top = 18;
+  const plotHeight = bottom - top;
+  const slot = (width - left - 24) / data.length;
+  const barWidth = Math.max(10, slot * 0.46);
+  ctx.clearRect(0, 0, width, height);
+  ctx.strokeStyle = "#e3e9e4";
+  ctx.fillStyle = "#6c766f";
+  ctx.font = "12px system-ui";
+  [-1, -0.5, 0, 0.5, 1].forEach((ratio) => {
+    const y = top + plotHeight / 2 - ratio * (plotHeight / 2);
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(width - 16, y);
+    ctx.stroke();
+  });
+  data.forEach((item, index) => {
+    const centerX = left + index * slot + slot / 2;
+    const baseY = top + plotHeight / 2;
+    const incomeHeight = (item.income / max) * (plotHeight / 2);
+    const expenseHeight = (item.expense / max) * (plotHeight / 2);
+    ctx.fillStyle = "#184d41";
+    roundRect(ctx, centerX - barWidth / 2, baseY - incomeHeight, barWidth, incomeHeight, 5);
+    ctx.fill();
+    ctx.fillStyle = "#b5f29b";
+    roundRect(ctx, centerX - barWidth / 2, baseY, barWidth, expenseHeight, 5);
+    ctx.fill();
+    ctx.fillStyle = "#6c766f";
+    ctx.fillText(item.label, centerX - 11, height - 10);
+  });
+  ctx.fillStyle = "#184d41";
+  ctx.fillRect(width - 188, 22, 10, 10);
+  ctx.fillText("Income", width - 172, 32);
+  ctx.fillStyle = "#b5f29b";
+  ctx.fillRect(width - 100, 22, 10, 10);
+  ctx.fillStyle = "#184d41";
+  ctx.fillText("Expense", width - 84, 32);
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  const safeHeight = Math.max(height, 0);
+  if (safeHeight <= 0 || width <= 0) {
+    ctx.beginPath();
+    return;
+  }
+  const safeRadius = Math.min(radius, width / 2, safeHeight / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + safeHeight - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + safeHeight, x + width - safeRadius, y + safeHeight);
+  ctx.lineTo(x + safeRadius, y + safeHeight);
+  ctx.quadraticCurveTo(x, y + safeHeight, x, y + safeHeight - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+}
+
 function drawBarChart(id, data) {
   const canvas = document.querySelector(`#${id}`);
   const { ctx, width, height } = prepareCanvas(canvas);
@@ -883,6 +1057,14 @@ function saveState() {
 function migrateState() {
   const requiredUsers = seedState.users;
   let changed = false;
+  if (!state.settings) {
+    state.settings = { currency: "USD" };
+    changed = true;
+  }
+  if (!currencyRates[state.settings.currency]) {
+    state.settings.currency = "USD";
+    changed = true;
+  }
   requiredUsers.forEach((requiredUser) => {
     if (!state.users.some((user) => user.email === requiredUser.email)) {
       state.users.push(requiredUser);
@@ -904,12 +1086,35 @@ function options(items) {
   return items.map((item) => `<option>${escapeHtml(item)}</option>`).join("");
 }
 
+function activeCurrency() {
+  return state.settings?.currency || "USD";
+}
+
+function baseToDisplay(value) {
+  return Number(value || 0) * currencyRates[activeCurrency()].rate;
+}
+
+function displayToBase(value) {
+  return Number(value || 0) / currencyRates[activeCurrency()].rate;
+}
+
 function money(value) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value) || 0);
+  const config = currencyRates[activeCurrency()];
+  return new Intl.NumberFormat(config.locale, {
+    style: "currency",
+    currency: config.currency,
+    maximumFractionDigits: config.fractionDigits,
+  }).format(baseToDisplay(value));
 }
 
 function compactMoney(value) {
-  return new Intl.NumberFormat("en-US", { notation: "compact", style: "currency", currency: "USD" }).format(Number(value) || 0);
+  const config = currencyRates[activeCurrency()];
+  return new Intl.NumberFormat(config.locale, {
+    notation: "compact",
+    style: "currency",
+    currency: config.currency,
+    maximumFractionDigits: config.fractionDigits,
+  }).format(baseToDisplay(value));
 }
 
 function formatDate(value) {
