@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FinTrack Personal Finance</title>
-    <link rel="stylesheet" href="styles.css?v=20260513-dashboard-currency" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div id="authScreen" class="auth-screen">
@@ -56,40 +56,26 @@
     <div id="appShell" class="app-shell hidden">
       <aside class="sidebar">
         <div class="sidebar-brand">
-          <div class="brand-mark coin-mark" aria-hidden="true">◆</div>
-          <span>COINEST</span>
+          <div class="brand-mark" aria-hidden="true">F</div>
+          <span>FinTrack</span>
         </div>
         <nav class="nav-list" aria-label="Main">
-          <button class="nav-item active" data-view="dashboard" type="button"><span>▦</span>Dashboard</button>
-          <button class="nav-item" data-view="transactions" type="button"><span>↔</span>Transactions</button>
-          <button class="nav-item" data-view="budgets" type="button"><span>▤</span>Budgets</button>
-          <button class="nav-item" data-view="goals" type="button"><span>◇</span>Saving Plans</button>
-          <button class="nav-item" data-view="reports" type="button"><span>◷</span>Insights</button>
-          <button class="nav-item" data-view="accounts" type="button"><span>▣</span>Accounts</button>
+          <button class="nav-item active" data-view="dashboard" type="button">Dashboard</button>
+          <button class="nav-item" data-view="transactions" type="button">Transactions</button>
+          <button class="nav-item" data-view="budgets" type="button">Budgets</button>
+          <button class="nav-item" data-view="goals" type="button">Goals</button>
+          <button class="nav-item" data-view="reports" type="button">Reports</button>
+          <button class="nav-item" data-view="accounts" type="button">Accounts</button>
         </nav>
-        <div class="sidebar-promo">
-          <div class="promo-icon" aria-hidden="true">▣</div>
-          <p>Gain full access to detailed analytics and graphs</p>
-          <button class="primary-button" type="button">Get Pro</button>
-        </div>
       </aside>
 
       <main class="main-area">
         <header class="topbar">
           <div>
+            <p class="eyebrow">Personal finance</p>
             <h2 id="viewTitle">Dashboard</h2>
           </div>
           <div class="topbar-actions">
-            <label class="search-box" aria-label="Search">
-              <input id="globalSearch" type="search" placeholder="Search placeholder" />
-              <span>⌕</span>
-            </label>
-            <button class="round-button" type="button" aria-label="Messages">☵</button>
-            <button class="round-button" type="button" aria-label="Notifications">◔</button>
-            <select id="currencySelect" class="currency-select" aria-label="Currency">
-              <option value="USD">USD</option>
-              <option value="VND">VND</option>
-            </select>
             <span id="activeUser" class="user-chip"></span>
             <button id="logoutButton" class="ghost-button" type="button">Logout</button>
           </div>
@@ -104,6 +90,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260513-dashboard-currency"></script>
+    <script src="app.js"></script>
   </body>
 </html>
